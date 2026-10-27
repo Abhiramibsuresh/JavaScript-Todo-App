@@ -1,0 +1,287 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My To-Do List</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="container">
+        <div class="header">
+            <span class="header-icon">🌸</span>
+            <h1>My To-Do List</h1>
+            <p class="subtitle">Plan your day. Get things done.</p>
+        </div>
+
+        <form id="taskForm" novalidate>
+            <div class="input-group">
+                <input
+                    type="text"
+                    id="taskInput"
+                    placeholder="What do you need to do?"
+                    autocomplete="off"
+                    aria-describedby="errorMessage"
+                    aria-invalid="false"
+                >
+                <p id="errorMessage" class="error-message" role="alert"></p>
+            </div>
+
+            <button type="submit" class="add-btn">
+                <span class="plus-icon">+</span>
+                Add Task
+            </button>
+        </form>
+
+        <div class="list-heading">
+            <h2>Your Tasks</h2>
+            <span id="totalBadge" class="total-badge">0 tasks</span>
+        </div>
+
+        <ul id="taskList"></ul>
+
+        <div class="task-count" id="taskCount">
+            <div class="count-item">
+                <span class="count-number" id="totalCount">0</span>
+                <span class="count-label">Total</span>
+            </div>
+            <div class="count-item">
+                <span class="count-number" id="completedCount">0</span>
+                <span class="count-label">Completed</span>
+            </div>
+            <div class="count-item">
+                <span class="count-number" id="pendingCount">0</span>
+                <span class="count-label">Pending</span>
+            </div>
+        </div>
+
+        <button type="button" id="clearAll" class="clear-btn">
+            Clear All Tasks
+        </button>
+
+        <p class="footer-text">Small steps every day make a big difference ✨</p>
+    </main>
+
+    <script>
+        const taskForm = document.getElementById("taskForm");
+        const taskInput = document.getElementById("taskInput");
+        const taskList = document.getElementById("taskList");
+        const errorMessage = document.getElementById("errorMessage");
+        const clearAllButton = document.getElementById("clearAll");
+
+        const totalBadge = document.getElementById("totalBadge");
+        const totalCount = document.getElementById("totalCount");
+        const completedCount = document.getElementById("completedCount");
+        const pendingCount = document.getElementById("pendingCount");
+
+        const STORAGE_KEY = "myTodoTasks";
+        let tasks = [];
+
+        try {
+            const savedTasks = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+            if (Array.isArray(savedTasks)) {
+                tasks = savedTasks.filter(task =>
+                    task &&
+                    typeof task.id === "string" &&
+                    typeof task.text === "string" &&
+                    task.text.trim() !== "" &&
+                    /\p{L}/u.test(task.text) &&
+                    typeof task.completed === "boolean"
+                );
+            }
+        } catch (error) {
+            tasks = [];
+        }
+
+
+        function saveTasks() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+                return true;
+            } catch (error) {
+                alert("Unable to save tasks. Please check your browser storage.");
+                return false;
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.toggle("show", message !== "");
+
+            taskInput.classList.toggle("invalid", message !== "");
+            taskInput.setAttribute(
+                "aria-invalid",
+                message !== "" ? "true" : "false"
+            );
+        }
+
+        function updateCount() {
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.completed).length;
+            const pending = total - completed;
+
+            totalCount.textContent = total;
+            completedCount.textContent = completed;
+            pendingCount.textContent = pending;
+            totalBadge.textContent = total + (total === 1 ? " task" : " tasks");
+        }
+
+        function displayTasks() {
+            taskList.replaceChildren();
+
+            if (tasks.length === 0) {
+                const emptyMessage = document.createElement("li");
+                emptyMessage.className = "empty-message";
+
+                const emptyIcon = document.createElement("span");
+                emptyIcon.className = "empty-icon";
+                emptyIcon.textContent = "✧";
+
+                const emptyText = document.createElement("span");
+                emptyText.textContent = "No tasks yet. Add your first task!";
+
+                emptyMessage.append(emptyIcon, emptyText);
+                taskList.appendChild(emptyMessage);
+            }
+
+            tasks.forEach(task => {
+                const li = document.createElement("li");
+                li.className = "task-item";
+                li.dataset.id = task.id;
+
+                if (task.completed) {
+                    li.classList.add("completed");
+                }
+
+                const status = document.createElement("span");
+                status.className = "task-status";
+                status.textContent = task.completed ? "✓" : "";
+                status.setAttribute("aria-hidden", "true");
+
+                const text = document.createElement("span");
+                text.className = "task-text";
+                text.textContent = task.text;
+                text.title = "Click to mark completed or pending";
+
+                const deleteButton = document.createElement("button");
+                deleteButton.type = "button";
+                deleteButton.className = "delete-btn";
+                deleteButton.textContent = "Delete";
+                deleteButton.setAttribute(
+                    "aria-label",
+                    "Delete task: " + task.text
+                );
+
+                li.append(status, text, deleteButton);
+                taskList.appendChild(li);
+            });
+
+            updateCount();
+        }
+
+        taskForm.addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const text = taskInput.value.trim();
+
+            if (text === "") {
+                showError("Please enter a task.");
+                taskInput.focus();
+                return;
+            }
+
+            if (!/\p{L}/u.test(text)) {
+                showError("Please enter a task containing at least one letter. Numbers alone are not allowed.");
+                taskInput.focus();
+                return;
+            }
+
+            const newTask = {
+                id: Date.now().toString() +
+                    Math.random().toString(36).slice(2),
+                text: text,
+                completed: false
+            };
+
+            tasks.push(newTask);
+
+            if (!saveTasks()) {
+                tasks.pop();
+                return;
+            }
+
+            showError("");
+            displayTasks();
+
+            taskInput.value = "";
+            taskInput.focus();
+        });
+
+        taskInput.addEventListener("input", function() {
+            const text = taskInput.value.trim();
+
+            if (text === "") {
+                showError("");
+            } else if (/\p{L}/u.test(text)) {
+                showError("");
+            }
+        });
+
+        taskList.addEventListener("click", function(event) {
+            const li = event.target.closest(".task-item");
+
+            if (!li || !taskList.contains(li)) {
+                return;
+            }
+
+            const index = tasks.findIndex(task => task.id === li.dataset.id);
+
+            if (index === -1) {
+                return;
+            }
+
+            const previousState = tasks[index].completed;
+
+            if (event.target.closest(".delete-btn")) {
+                const removedTask = tasks.splice(index, 1)[0];
+
+                if (!saveTasks()) {
+                    tasks.splice(index, 0, removedTask);
+                }
+            } else {
+                tasks[index].completed = !tasks[index].completed;
+
+                if (!saveTasks()) {
+                    tasks[index].completed = previousState;
+                }
+            }
+
+            displayTasks();
+        });
+  
+        clearAllButton.addEventListener("click", function() {
+            if (tasks.length === 0) {
+                alert("There are no tasks to clear.");
+                return;
+            }
+
+            if (confirm("Are you sure you want to delete all tasks?")) {
+                const previousTasks = tasks;
+                tasks = [];
+
+                if (!saveTasks()) {
+                    tasks = previousTasks;
+                }
+
+                displayTasks();
+            }
+        });
+
+        displayTasks();
+    </script>
+
+</body>
+</html>
